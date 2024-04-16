@@ -1,25 +1,68 @@
 use std::env;
 use std::path::PathBuf;
 
+use walkdir::WalkDir;
+
 fn main() {
-    let mut cfg = cmake::Config::new("./");
+    build();
+    link();
+    generate_bindings();
 
-    let profile = cfg.get_profile().to_string();
+    println!("cargo:rerun-if-changed=JoltC/JoltPhysicsC.h");
+}
 
-    let dst = cfg
-        .define("ENABLE_ALL_WARNINGS", "OFF")
-        .define("USE_STATIC_MSVC_RUNTIME_LIBRARY", "OFF")
-        // .build_target("JoltC")
-        .build_target("ALL_BUILD")
-        .build();
+fn build() {
+    build_jolt();
+    build_joltc();
+}
 
-    println!(
-        "cargo:rustc-link-search=native={}",
-        dst.join("build/").join(profile).display()
-    );
+fn build_joltc() {
+    let mut build = cc::Build::new();
+
+    for entry in WalkDir::new("JoltC") {
+        let entry = entry.unwrap();
+        let file_name = entry
+            .file_name()
+            .to_str()
+            .expect("file was not valid UTF-8");
+
+        if file_name.ends_with(".cpp") {
+            build.file(entry.path());
+        }
+    }
+
+    build
+        .std("c++17")
+        .include(".")
+        .include("JoltC")
+        .cpp(true)
+        .compile("JoltC");
+}
+
+fn build_jolt() {
+    let mut build = cc::Build::new();
+
+    for entry in WalkDir::new("Jolt") {
+        let entry = entry.unwrap();
+        let file_name = entry
+            .file_name()
+            .to_str()
+            .expect("file was not valid UTF-8");
+
+        if file_name.ends_with(".cpp") {
+            build.file(entry.path());
+        }
+    }
+
+    build.std("c++17").include(".").cpp(true).compile("Jolt");
+}
+
+fn link() {
     println!("cargo:rustc-link-lib=Jolt");
     println!("cargo:rustc-link-lib=JoltC");
+}
 
+fn generate_bindings() {
     let bindings = bindgen::Builder::default()
         .header("JoltC/JoltPhysicsC.h")
         .allowlist_item("JPC_+.*")
@@ -33,6 +76,4 @@ fn main() {
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
-
-    println!("cargo:rerun-if-changed=JoltC/JoltPhysicsC.h");
 }
