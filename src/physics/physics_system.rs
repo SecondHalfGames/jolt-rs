@@ -13,6 +13,10 @@ pub struct PhysicsSystem {
 }
 
 impl PhysicsSystem {
+    pub fn as_raw(&self) -> *mut jolt_sys::JPC_PhysicsSystem {
+        self.inner
+    }
+
     pub fn create(
         max_bodies: u32,
         num_body_mutexes: u32,
